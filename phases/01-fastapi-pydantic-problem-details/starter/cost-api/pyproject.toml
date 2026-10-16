@@ -1,0 +1,26 @@
+[project]
+name = "cost-api"
+version = "1.0.0"
+description = "CostPilot cost-api: FOCUS cost data over HTTP with RFC 9457 errors"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115",
+  "pydantic>=2.11",
+  "pydantic-settings>=2.6",
+  "uvicorn[standard]>=0.30",
+]
+
+[project.optional-dependencies]
+bigquery = ["google-cloud-bigquery>=3.25"]
+dev = ["pytest>=8", "httpx>=0.27"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cost_api"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

@@ -1,0 +1,7 @@
+{
+  "type": "https://example.com/problems/team-not-found",
+  "title": "Unknown team",
+  "status": 404,
+  "detail": "No cost data exists for team 'marketing'. Call GET /v1/teams for valid ids.",
+  "instance": "/v1/teams/marketing/summary"
+}

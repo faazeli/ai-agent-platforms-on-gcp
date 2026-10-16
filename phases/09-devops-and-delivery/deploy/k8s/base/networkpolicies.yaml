@@ -1,0 +1,113 @@
+# Zero Trust inside the cluster: nothing talks to anything unless allowed here.
+# 1) deny all ingress and egress, 2) allow DNS, 3) allow exactly the calls in the architecture.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+---
+# Workload Identity tokens come from the GKE metadata server, and Google APIs
+# (BigQuery, Vertex AI, Model Armor, Cloud Trace) are reached over 443.
+# Standard NetworkPolicy can't name domains; GKE's FQDN network policies can (stretch goal).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-google-apis
+spec:
+  podSelector:
+    matchExpressions:
+      - {key: app, operator: In, values: [cost-api, agents, litellm, mcp-finops]}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock: {cidr: 169.254.169.252/32}
+      ports: [{protocol: TCP, port: 988}]
+    - to:
+        - ipBlock: {cidr: 169.254.169.254/32}
+      ports: [{protocol: TCP, port: 80}]
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+      ports: [{protocol: TCP, port: 443}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: agents-to-gateway-and-mcp
+spec:
+  podSelector: {matchLabels: {app: agents}}
+  policyTypes: [Egress]
+  egress:
+    - to: [{podSelector: {matchLabels: {app: litellm}}}]
+      ports: [{protocol: TCP, port: 4000}]
+    - to: [{podSelector: {matchLabels: {app: mcp-finops}}}]
+      ports: [{protocol: TCP, port: 8001}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: litellm-from-agents
+spec:
+  podSelector: {matchLabels: {app: litellm}}
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{podSelector: {matchLabels: {app: agents}}}]
+      ports: [{protocol: TCP, port: 4000}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mcp-from-agents-and-to-cost-api
+spec:
+  podSelector: {matchLabels: {app: mcp-finops}}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from: [{podSelector: {matchLabels: {app: agents}}}]
+      ports: [{protocol: TCP, port: 8001}]
+  egress:
+    - to: [{podSelector: {matchLabels: {app: cost-api}}}]
+      ports: [{protocol: TCP, port: 8000}]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cost-api-from-mcp-and-ledger
+spec:
+  podSelector: {matchLabels: {app: cost-api}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {app: mcp-finops}}
+        - podSelector: {matchLabels: {app: ledger-java}}
+      ports: [{protocol: TCP, port: 8000}]
+---
+# The agents' API is reached through an internal load balancer / gateway; allow it in
+# from anywhere in the VPC. Tighten to your ingress controller's pods when you add one.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: agents-ingress
+spec:
+  podSelector: {matchLabels: {app: agents}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - ipBlock: {cidr: 10.0.0.0/8}
+      ports: [{protocol: TCP, port: 8080}]

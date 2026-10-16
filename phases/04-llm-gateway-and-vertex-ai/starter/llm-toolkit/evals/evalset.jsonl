@@ -1,0 +1,25 @@
+{"id": "q01", "tag": "total", "question": "What was data-platform's total effective cost in July 2026?", "expected": {"answer_type": "number", "value": "9303.39", "unit": "USD"}}
+{"id": "q02", "tag": "total", "question": "What was ml-research's total effective cost in July 2026?", "expected": {"answer_type": "number", "value": "5667.16", "unit": "USD"}}
+{"id": "q03", "tag": "total", "question": "What was payments' total effective cost in July 2026?", "expected": {"answer_type": "number", "value": "5717.96", "unit": "USD"}}
+{"id": "q04", "tag": "total", "question": "What was search's total effective cost in July 2026?", "expected": {"answer_type": "number", "value": "7896.71", "unit": "USD"}}
+{"id": "q05", "tag": "total", "question": "What was data-platform's total effective cost in August 2026?", "expected": {"answer_type": "number", "value": "9403.46", "unit": "USD"}}
+{"id": "q06", "tag": "total", "question": "What was ml-research's total effective cost in August 2026?", "expected": {"answer_type": "number", "value": "5818.32", "unit": "USD"}}
+{"id": "q07", "tag": "total", "question": "What was payments' total effective cost in August 2026?", "expected": {"answer_type": "number", "value": "5733.43", "unit": "USD"}}
+{"id": "q08", "tag": "total", "question": "What was search's total effective cost in August 2026?", "expected": {"answer_type": "number", "value": "8047.80", "unit": "USD"}}
+{"id": "q09", "tag": "total", "question": "What was data-platform's total effective cost in September 2026?", "expected": {"answer_type": "number", "value": "9453.13", "unit": "USD"}}
+{"id": "q10", "tag": "total", "question": "What was ml-research's total effective cost in September 2026?", "expected": {"answer_type": "number", "value": "6330.75", "unit": "USD"}}
+{"id": "q11", "tag": "total", "question": "What was payments' total effective cost in September 2026?", "expected": {"answer_type": "number", "value": "5807.51", "unit": "USD"}}
+{"id": "q12", "tag": "total", "question": "What was search's total effective cost in September 2026?", "expected": {"answer_type": "number", "value": "8275.29", "unit": "USD"}}
+{"id": "q13", "tag": "top_service", "question": "Which service cost data-platform the most in September 2026?", "expected": {"answer_type": "text", "value": "Compute Engine", "unit": null}}
+{"id": "q14", "tag": "top_service", "question": "Which service cost ml-research the most in September 2026?", "expected": {"answer_type": "text", "value": "Compute Engine", "unit": null}}
+{"id": "q15", "tag": "top_service", "question": "Which service cost payments the most in September 2026?", "expected": {"answer_type": "text", "value": "BigQuery", "unit": null}}
+{"id": "q16", "tag": "top_service", "question": "Which service cost search the most in September 2026?", "expected": {"answer_type": "text", "value": "Kubernetes Engine", "unit": null}}
+{"id": "q17", "tag": "commitment", "question": "How much more did payments get billed than its effective cost in July 2026?", "expected": {"answer_type": "number", "value": "256.78", "unit": "USD"}}
+{"id": "q18", "tag": "commitment", "question": "How much more did payments get billed than its effective cost in August 2026?", "expected": {"answer_type": "number", "value": "251.02", "unit": "USD"}}
+{"id": "q19", "tag": "commitment", "question": "How much more did payments get billed than its effective cost in September 2026?", "expected": {"answer_type": "number", "value": "244.50", "unit": "USD"}}
+{"id": "q20", "tag": "anomaly", "question": "On which day in September 2026 did ml-research's daily cost spike?", "expected": {"answer_type": "date", "value": "2026-09-18", "unit": null}}
+{"id": "q21", "tag": "untagged", "question": "How much spend had no owning team in September 2026?", "expected": {"answer_type": "number", "value": "402.30", "unit": "USD"}}
+{"id": "q22", "tag": "ranking", "question": "Which team had the highest effective cost in September 2026?", "expected": {"answer_type": "text", "value": "data-platform", "unit": null}}
+{"id": "q23", "tag": "ranking", "question": "In which month was data-platform's effective cost highest? Answer as YYYY-MM.", "expected": {"answer_type": "text", "value": "2026-09", "unit": null}}
+{"id": "q24", "tag": "billed", "question": "What was search's total billed cost in July 2026?", "expected": {"answer_type": "number", "value": "7896.71", "unit": "USD"}}
+{"id": "q25", "tag": "count", "question": "How many different services did payments use in September 2026?", "expected": {"answer_type": "number", "value": "4", "unit": null}}

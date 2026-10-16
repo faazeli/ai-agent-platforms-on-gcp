@@ -1,0 +1,40 @@
+# GitOps (Lab 9.5): Argo CD keeps the cluster equal to what's in Git.
+# Nobody runs `kubectl apply` against prod; changes arrive as merged commits.
+#   kubectl apply -n argocd -f deploy/argocd/applications.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: costpilot-dev
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/YOUR_ORG/YOUR_REPO.git
+    targetRevision: main
+    path: phases/09-devops-and-delivery/deploy/k8s/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: costpilot
+  syncPolicy:
+    automated:
+      prune: true      # delete what was removed from Git
+      selfHeal: true   # undo manual drift
+    syncOptions: [CreateNamespace=true]
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: costpilot-prod
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/YOUR_ORG/YOUR_REPO.git
+    targetRevision: main
+    path: phases/09-devops-and-delivery/deploy/k8s/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc   # in real life: a separate prod cluster
+    namespace: costpilot
+  syncPolicy:
+    syncOptions: [CreateNamespace=true]
+    # No "automated" block: prod syncs when a human clicks Sync after reviewing the diff.

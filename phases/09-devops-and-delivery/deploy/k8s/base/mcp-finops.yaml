@@ -1,0 +1,95 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mcp-finops
+  annotations:
+    # Workload Identity: this KSA acts as this GSA (Phase 6). PROJECT_ID is replaced by the overlay.
+    iam.gke.io/gcp-service-account: mcp-finops-gsa@PROJECT_ID.iam.gserviceaccount.com
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-finops
+  labels: {app: mcp-finops}
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: mcp-finops}
+  strategy:
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  template:
+    metadata:
+      labels: {app: mcp-finops}
+    spec:
+      serviceAccountName: mcp-finops
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: mcp-finops
+          image: mcp-finops
+          ports:
+            - {name: http, containerPort: 8001}
+          env:
+            - name: MCP_FINOPS_COST_API_URL
+              value: 'http://cost-api.costpilot.svc.cluster.local:8000'
+            - name: MCP_FINOPS_COST_API_AUDIENCE
+              value: 'http://cost-api.costpilot.svc.cluster.local:8000'
+            - name: MCP_FINOPS_OIDC_ISSUER
+              value: 'https://idp.example.com/realms/costpilot'
+            - name: MCP_FINOPS_OIDC_JWKS_URI
+              value: 'https://idp.example.com/realms/costpilot/protocol/openid-connect/certs'
+          resources:
+            # Requests drive both scheduling and (on Autopilot) the bill: size them from Phase 8.
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {memory: 512Mi}
+          readinessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: {port: http}
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsUser: 10001
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-finops
+  labels: {app: mcp-finops}
+spec:
+  selector: {app: mcp-finops}
+  ports:
+    - {name: http, port: 8001, targetPort: http}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: mcp-finops
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: mcp-finops}
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: {type: Utilization, averageUtilization: 70}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mcp-finops
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {app: mcp-finops}

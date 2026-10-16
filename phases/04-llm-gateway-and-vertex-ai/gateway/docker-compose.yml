@@ -1,0 +1,39 @@
+# Local gateway: LiteLLM proxy + Postgres (for virtual keys, budgets, spend logs).
+#
+#   cp .env.example .env    # then edit it
+#   docker compose up -d
+#   curl -s localhost:4000/health/liveliness
+#
+# The proxy calls Vertex AI with your Application Default Credentials, mounted
+# read-only below. On GKE (Phase 9) it uses Workload Identity instead, no files.
+
+services:
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable   # pin a specific version tag once it works for you
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    ports: ["4000:4000"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://litellm:litellm@db:5432/litellm
+      GOOGLE_APPLICATION_CREDENTIALS: /secrets/adc.json
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ${ADC_FILE:-~/.config/gcloud/application_default_credentials.json}:/secrets/adc.json:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: litellm
+      POSTGRES_DB: litellm
+    volumes: ["litellm-db:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  litellm-db:

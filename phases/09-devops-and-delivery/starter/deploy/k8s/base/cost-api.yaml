@@ -1,0 +1,99 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cost-api
+  annotations:
+    # Workload Identity: this KSA acts as this GSA (Phase 6). PROJECT_ID is replaced by the overlay.
+    iam.gke.io/gcp-service-account: cost-api-gsa@PROJECT_ID.iam.gserviceaccount.com
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cost-api
+  labels: {app: cost-api}
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: cost-api}
+  strategy:
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  template:
+    metadata:
+      labels: {app: cost-api}
+    spec:
+      serviceAccountName: cost-api
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: cost-api
+          image: cost-api
+          ports:
+            - {name: http, containerPort: 8000}
+          env:
+            - name: COST_API_DATA_SOURCE
+              value: 'bigquery'
+            - name: COST_API_GCP_PROJECT
+              value: 'PROJECT_ID'
+            - name: COST_API_OIDC_ISSUER
+              value: 'https://idp.example.com/realms/costpilot'
+            - name: COST_API_OIDC_JWKS_URI
+              value: 'https://idp.example.com/realms/costpilot/protocol/openid-connect/certs'
+            - name: COST_API_WORKLOAD_AUDIENCE
+              value: 'http://cost-api.costpilot.svc.cluster.local:8000'
+            - name: COST_API_TRUSTED_DELEGATORS
+              value: 'mcp-finops-gsa@PROJECT_ID.iam.gserviceaccount.com'
+          resources:
+            # Requests drive both scheduling and (on Autopilot) the bill: size them from Phase 8.
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {memory: 512Mi}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsUser: 10001
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cost-api
+  labels: {app: cost-api}
+spec:
+  selector: {app: cost-api}
+  ports:
+    - {name: http, port: 8000, targetPort: http}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cost-api
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: cost-api}
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: {type: Utilization, averageUtilization: 70}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cost-api
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {app: cost-api}

@@ -1,0 +1,11 @@
+# Build context is the repo root; send only what images need.
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/target
+**/node_modules
+.git
+**/*.tfstate*
+**/.terraform
+**/evals/results
+**/.env

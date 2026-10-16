@@ -1,0 +1,60 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+labels:
+  - pairs: {env: dev}
+    includeSelectors: false
+
+# Project-specific values in one place. The ConfigMap is "local-config", so kustomize
+# uses it for replacements below and does not deploy it.
+configMapGenerator:
+  - name: project
+    literals:
+      - project_id=YOUR_DEV_PROJECT_ID
+      - sa_domain=YOUR_DEV_PROJECT_ID.iam.gserviceaccount.com
+    options:
+      annotations: {config.kubernetes.io/local-config: "true"}
+
+replacements:
+  - source: {kind: ConfigMap, name: project, fieldPath: data.sa_domain}
+    targets:
+      - select: {kind: ServiceAccount}
+        fieldPaths: ["metadata.annotations.[iam.gke.io/gcp-service-account]"]
+        options: {delimiter: "@", index: 1}
+      - select: {kind: Deployment, name: cost-api}
+        fieldPaths: ["spec.template.spec.containers.[name=cost-api].env.[name=COST_API_TRUSTED_DELEGATORS].value"]
+        options: {delimiter: "@", index: 1}
+  - source: {kind: ConfigMap, name: project, fieldPath: data.project_id}
+    targets:
+      - select: {kind: Deployment, name: cost-api}
+        fieldPaths: ["spec.template.spec.containers.[name=cost-api].env.[name=COST_API_GCP_PROJECT].value"]
+      - select: {kind: Deployment, name: litellm}
+        fieldPaths: ["spec.template.spec.containers.[name=litellm].env.[name=VERTEX_PROJECT].value"]
+
+# CI sets these with:  kustomize edit set image cost-api=REGION-docker.pkg.dev/PROJECT/costpilot/cost-api@sha256:...
+# Deploy by DIGEST, never by a moving tag.
+images:
+  - {name: cost-api, newName: us-central1-docker.pkg.dev/YOUR_DEV_PROJECT_ID/costpilot/cost-api, newTag: dev-latest-sha}
+  - {name: mcp-finops, newName: us-central1-docker.pkg.dev/YOUR_DEV_PROJECT_ID/costpilot/mcp-finops, newTag: dev-latest-sha}
+  - {name: agents, newName: us-central1-docker.pkg.dev/YOUR_DEV_PROJECT_ID/costpilot/agents, newTag: dev-latest-sha}
+
+# Dev: one replica each, smaller footprint.
+patches:
+  - target: {kind: HorizontalPodAutoscaler}
+    patch: |-
+      - {op: replace, path: /spec/minReplicas, value: 1}
+      - {op: replace, path: /spec/maxReplicas, value: 2}
+  - target: {kind: Deployment}
+    patch: |-
+      - {op: replace, path: /spec/replicas, value: 1}
+  # Dev serves the course's sample data, so agent evals (built from the same data)
+  # are meaningful for canary analysis. Prod reads BigQuery.
+  - target: {kind: Deployment, name: cost-api}
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/env/0/value
+        value: memory
+  - target: {kind: PodDisruptionBudget}
+    patch: |-
+      - {op: replace, path: /spec/minAvailable, value: 0}

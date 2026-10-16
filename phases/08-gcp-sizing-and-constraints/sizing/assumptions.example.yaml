@@ -1,0 +1,42 @@
+# Workload model for CostPilot. Every number here is an ASSUMPTION or a LOOKUP.
+# Write down where each one came from; reviewers will ask.
+#
+# ⚠ Prices and quotas below are PLACEHOLDERS so the script runs. Replace them with
+#   - prices from the current Vertex AI pricing page, per model, per 1M tokens
+#   - quotas from your project's Quotas page (Phase 4 field notes, vertex/quotas.md)
+
+currency: USD
+
+traffic:
+  users: 200                      # people who will use CostPilot (source: FinOps champions list)
+  questions_per_user_per_day: 5   # source: pilot usage, or a guess you will revisit
+  peak_hour_share: 0.30           # 30% of a day's questions arrive in the busiest hour
+  working_days_per_month: 22
+
+models:                           # per gateway alias (Phase 4)
+  fast:
+    calls_per_question: 4         # coordinator routing + specialist steps (count them in adk web traces)
+    input_tokens_per_call: 3000   # instructions + tool schemas + history + tool results
+    output_tokens_per_call: 800
+    price_per_million_input: 0.30    # PLACEHOLDER
+    price_per_million_output: 2.50   # PLACEHOLDER
+  smart:
+    calls_per_question: 2
+    input_tokens_per_call: 3000
+    output_tokens_per_call: 800
+    price_per_million_input: 1.25    # PLACEHOLDER
+    price_per_million_output: 10.00  # PLACEHOLDER
+
+quotas:                           # your project's limits per alias's model, in the region you use
+  fast:
+    requests_per_minute: 60       # PLACEHOLDER
+    tokens_per_minute: 400000     # PLACEHOLDER
+  smart:
+    requests_per_minute: 30       # PLACEHOLDER
+    tokens_per_minute: 200000     # PLACEHOLDER
+
+fixed_monthly_costs:              # from load tests + the pricing calculator (Lab 8.4)
+  agent_runtime: 0                # e.g. GKE Autopilot pods or Agent Engine, fill in
+  gateway_and_mcp: 0
+  bigquery: 0
+  observability_and_logs: 0

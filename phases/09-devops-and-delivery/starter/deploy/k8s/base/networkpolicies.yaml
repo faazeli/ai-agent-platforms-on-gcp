@@ -1,0 +1,30 @@
+# Zero Trust inside the cluster: nothing talks to anything unless allowed here.
+# 1) deny all ingress and egress, 2) allow DNS, 3) allow exactly the calls in the architecture.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+      ports:
+        - {protocol: UDP, port: 53}
+        - {protocol: TCP, port: 53}
+---
+# TODO Lab 9.3: allow exactly the calls in the architecture, nothing else:
+#   - Google APIs over 443 and the GKE metadata server (169.254.169.252:988, 169.254.169.254:80)
+#     for cost-api, agents, litellm, mcp-finops
+#   - agents -> litellm:4000 and agents -> mcp-finops:8001 (egress) + matching ingress rules
+#   - mcp-finops -> cost-api:8000; cost-api accepts only mcp-finops and ledger-java
+#   - agents accept ingress on 8080 from inside the VPC

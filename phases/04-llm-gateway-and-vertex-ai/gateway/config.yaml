@@ -1,0 +1,42 @@
+# LiteLLM proxy configuration — CostPilot's single gateway to every model.
+#
+# Agents ask for a ROLE ALIAS ("fast", "smart"), never a vendor model id.
+# To change models, edit this file; no agent code changes.
+#
+# Model ids change several times a year. Before you start, check the current
+# list: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions
+# This file was written in October 2026 against gemini-3.5-flash (GA) and
+# gemini-3.1-pro-preview. Newer Gemini models are often served from the
+# "global" location; set VERTEX_LOCATION accordingly.
+
+model_list:
+  - model_name: fast
+    litellm_params:
+      model: vertex_ai/gemini-3.5-flash
+      vertex_project: os.environ/VERTEX_PROJECT
+      vertex_location: os.environ/VERTEX_LOCATION
+    model_info:
+      description: Cheap, quick model for routing, extraction and summaries
+
+  - model_name: smart
+    litellm_params:
+      model: vertex_ai/gemini-3.1-pro-preview
+      vertex_project: os.environ/VERTEX_PROJECT
+      vertex_location: os.environ/VERTEX_LOCATION
+    model_info:
+      description: Stronger reasoning for analysis and multi-step plans
+
+router_settings:
+  # If "smart" fails (quota 429, outage), retry on "fast" rather than failing the user.
+  fallbacks:
+    - smart: ["fast"]
+  num_retries: 2
+  timeout: 60
+
+litellm_settings:
+  drop_params: true          # ignore OpenAI params a provider doesn't support
+  request_timeout: 60
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY   # admin key: never give it to an agent
+  database_url: os.environ/DATABASE_URL       # enables virtual keys, budgets and spend logs

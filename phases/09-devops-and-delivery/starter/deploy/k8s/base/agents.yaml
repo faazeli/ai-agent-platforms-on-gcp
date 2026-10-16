@@ -1,0 +1,103 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agents
+  annotations:
+    # Workload Identity: this KSA acts as this GSA (Phase 6). PROJECT_ID is replaced by the overlay.
+    iam.gke.io/gcp-service-account: agents-gsa@PROJECT_ID.iam.gserviceaccount.com
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agents
+  labels: {app: agents}
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: agents}
+  strategy:
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  template:
+    metadata:
+      labels: {app: agents}
+    spec:
+      serviceAccountName: agents
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: agents
+          image: agents
+          ports:
+            - {name: http, containerPort: 8080}
+          env:
+            - name: COSTPILOT_GATEWAY_URL
+              value: 'http://litellm.costpilot.svc.cluster.local:4000'
+            - name: COSTPILOT_MCP_URL
+              value: 'http://mcp-finops.costpilot.svc.cluster.local:8001/mcp'
+            - name: COORDINATOR_VKEY
+              valueFrom:
+                secretKeyRef: {name: agent-gateway-keys, key: COORDINATOR_VKEY}
+            - name: COST_ANALYST_VKEY
+              valueFrom:
+                secretKeyRef: {name: agent-gateway-keys, key: COST_ANALYST_VKEY}
+            - name: ANOMALY_DETECTOR_VKEY
+              valueFrom:
+                secretKeyRef: {name: agent-gateway-keys, key: ANOMALY_DETECTOR_VKEY}
+            - name: RECOMMENDER_VKEY
+              valueFrom:
+                secretKeyRef: {name: agent-gateway-keys, key: RECOMMENDER_VKEY}
+          resources:
+            # Requests drive both scheduling and (on Autopilot) the bill: size them from Phase 8.
+            requests: {cpu: 500m, memory: 1Gi}
+            limits: {memory: 1Gi}
+          readinessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: {port: http}
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsUser: 10001
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agents
+  labels: {app: agents}
+spec:
+  selector: {app: agents}
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: agents
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: agents}
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: {type: Utilization, averageUtilization: 70}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: agents
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {app: agents}

@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: costpilot
+labels:
+  - pairs: {team: finops, service: costpilot}   # Kubernetes labels flow into GKE cost allocation
+    includeSelectors: false
+    includeTemplates: true   # pods carry them too (cost allocation, topology spread)
+resources:
+  - namespace.yaml
+  - networkpolicies.yaml
+  - cost-api.yaml
+  - mcp-finops.yaml
+  - agents.yaml
+  - litellm.yaml
+configMapGenerator:
+  - name: litellm-config
+    files:
+      - config.yaml=litellm-config.yaml

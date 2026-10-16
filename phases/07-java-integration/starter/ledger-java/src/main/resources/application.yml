@@ -1,0 +1,50 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: ledger-java
+  mvc:
+    problemdetails:
+      enabled: true          # framework errors (400, 404, 405...) as RFC 9457 Problem Details
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${OIDC_ISSUER:http://localhost:8080/realms/costpilot}
+          audiences: ${OIDC_AUDIENCE:ledger-java}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true        # /actuator/health/liveness and /readiness for Kubernetes
+
+costpilot:
+  cost-api:
+    base-url: ${COST_API_URL:http://localhost:8000}
+    audience: ${COST_API_AUDIENCE:https://cost-api.internal}
+    workload-auth: ${COST_API_WORKLOAD_AUTH:false}   # true on GKE: send our Google ID token
+    timeout: 10s
+  budgets:
+    - team-id: payments
+      month: 2026-09
+      amount: 6000
+      currency: USD
+    - team-id: search
+      month: 2026-09
+      amount: 9500
+      currency: USD
+      warn-at-fraction: 0.9
+    - team-id: data-platform
+      month: 2026-09
+      amount: 11000
+      currency: USD
+    - team-id: ml-research
+      month: 2026-09
+      amount: 5000
+      currency: USD

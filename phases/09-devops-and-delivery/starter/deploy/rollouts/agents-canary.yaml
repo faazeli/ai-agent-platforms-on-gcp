@@ -1,0 +1,79 @@
+# Progressive delivery for the agents (Lab 9.5) with Argo Rollouts.
+#
+# The Rollout takes over the existing "agents" Deployment (workloadRef), then
+# shifts traffic in steps. Between steps, an AnalysisRun executes the agent eval
+# suite (Phase 5) against the canary. If accuracy drops below the bar, the
+# rollout aborts and traffic returns to the stable version automatically.
+# Prompts and model aliases ship the same way: they are part of the image or config.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: agents
+  namespace: costpilot
+spec:
+  replicas: 3
+  selector:
+    matchLabels: {app: agents}
+  workloadRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: agents
+    scaleDown: progressively
+  strategy:
+    canary:
+      canaryService: agents-canary
+      stableService: agents
+      steps:
+        - setWeight: 10
+        - pause: {duration: 5m}
+        - analysis:
+            templates: [{templateName: agent-evals}]
+        - setWeight: 50
+        - pause: {duration: 10m}
+        - analysis:
+            templates: [{templateName: agent-evals}]
+        - setWeight: 100
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agents-canary
+  namespace: costpilot
+spec:
+  selector: {app: agents}
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: agent-evals
+  namespace: costpilot
+spec:
+  metrics:
+    - name: eval-accuracy
+      failureLimit: 0
+      provider:
+        job:
+          spec:
+            backoffLimit: 0
+            template:
+              spec:
+                serviceAccountName: agents
+                restartPolicy: Never
+                securityContext:
+                  runAsNonRoot: true
+                  seccompProfile: {type: RuntimeDefault}
+                containers:
+                  - name: evals
+                    image: agents   # replaced with the canary's digest by kustomize/CI
+                    command: ["python", "-m", "costpilot_agents.evals",
+                              "--evalset", "/app/evals/evalset.jsonl",
+                              "--limit", "10", "--min-accuracy", "0.8",
+                              "--gateway", "http://litellm.costpilot.svc.cluster.local:4000"]
+                    envFrom:
+                      - secretRef: {name: agent-gateway-keys}
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      runAsUser: 10001
+                      capabilities: {drop: [ALL]}

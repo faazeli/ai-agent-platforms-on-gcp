@@ -1,0 +1,87 @@
+[
+  {
+    "name": "BillingAccountId",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "SubAccountId",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ServiceProviderName",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ServiceName",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ServiceCategory",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ChargeCategory",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "ChargePeriodStart",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "ChargePeriodEnd",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "BillingPeriodStart",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "BilledCost",
+    "type": "NUMERIC",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "EffectiveCost",
+    "type": "NUMERIC",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ListCost",
+    "type": "NUMERIC",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "BillingCurrency",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "RegionId",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ResourceId",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "Tags",
+    "type": "JSON",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "x_TeamId",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  }
+]

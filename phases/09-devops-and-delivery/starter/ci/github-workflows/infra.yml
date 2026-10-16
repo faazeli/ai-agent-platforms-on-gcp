@@ -1,0 +1,62 @@
+# Infrastructure pipeline (Lab 9.2): plan on every PR, apply only from main after
+# a human approves the "infra-dev" environment. Humans never run `tofu apply` locally.
+
+name: infra
+
+on:
+  pull_request:
+    paths: ["phases/09-devops-and-delivery/infra/**"]
+  push:
+    branches: [main]
+    paths: ["phases/09-devops-and-delivery/infra/**"]
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+defaults:
+  run:
+    working-directory: phases/09-devops-and-delivery/infra/tofu/envs/dev
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: opentofu/setup-opentofu@v1
+        with: {tofu_version: 1.10.6}
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.TOFU_PLAN_SERVICE_ACCOUNT }}   # read-only roles
+      - run: tofu fmt -check -recursive ../..
+      - run: tofu init -backend-config="bucket=${{ vars.GCP_PROJECT }}-tofu-state"
+      - run: tofu validate
+      - id: plan
+        run: tofu plan -no-color -var "project_id=${{ vars.GCP_PROJECT }}" -out plan.out | tee plan.txt
+      - name: Comment the plan on the PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('phases/09-devops-and-delivery/infra/tofu/envs/dev/plan.txt', 'utf8');
+            const body = '### tofu plan (dev)\n```\n' + plan.slice(-60000) + '\n```';
+            await github.rest.issues.createComment({...context.repo, issue_number: context.issue.number, body});
+
+  apply:
+    if: github.event_name == 'push'
+    needs: plan
+    runs-on: ubuntu-latest
+    environment: infra-dev        # required reviewers configured in repo settings
+    steps:
+      - uses: actions/checkout@v4
+      - uses: opentofu/setup-opentofu@v1
+        with: {tofu_version: 1.10.6}
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.TOFU_APPLY_SERVICE_ACCOUNT }}
+      - run: tofu init -backend-config="bucket=${{ vars.GCP_PROJECT }}-tofu-state"
+      - run: tofu apply -auto-approve -var "project_id=${{ vars.GCP_PROJECT }}"

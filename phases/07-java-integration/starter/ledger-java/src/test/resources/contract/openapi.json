@@ -1,0 +1,758 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "cost-api",
+    "summary": "FOCUS cost data for teams. Every error is RFC 9457 Problem Details.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "tags": [
+          "ops"
+        ],
+        "summary": "Healthz",
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Healthz Healthz Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/teams": {
+      "get": {
+        "tags": [
+          "costs"
+        ],
+        "summary": "List Teams",
+        "operationId": "list_teams_v1_teams_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Team"
+                  },
+                  "type": "array",
+                  "title": "Response List Teams V1 Teams Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/teams/{team_id}/costs": {
+      "get": {
+        "tags": [
+          "costs"
+        ],
+        "summary": "Team Costs",
+        "operationId": "team_costs_v1_teams__team_id__costs_get",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{2,40}$",
+              "description": "Team identifier, e.g. payments",
+              "title": "Team Id"
+            },
+            "description": "Team identifier, e.g. payments"
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "description": "Calendar month, YYYY-MM",
+              "examples": [
+                "2026-09"
+              ],
+              "title": "Month"
+            },
+            "description": "Calendar month, YYYY-MM"
+          },
+          {
+            "name": "service",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Service"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1000,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/teams/{team_id}/summary": {
+      "get": {
+        "tags": [
+          "costs"
+        ],
+        "summary": "Team Summary",
+        "operationId": "team_summary_v1_teams__team_id__summary_get",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{2,40}$",
+              "description": "Team identifier, e.g. payments",
+              "title": "Team Id"
+            },
+            "description": "Team identifier, e.g. payments"
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "description": "Calendar month, YYYY-MM",
+              "examples": [
+                "2026-09"
+              ],
+              "title": "Month"
+            },
+            "description": "Calendar month, YYYY-MM"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamCostSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/teams/{team_id}/resources": {
+      "get": {
+        "tags": [
+          "costs"
+        ],
+        "summary": "Top Resources",
+        "operationId": "top_resources_v1_teams__team_id__resources_get",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{2,40}$",
+              "description": "Team identifier, e.g. payments",
+              "title": "Team Id"
+            },
+            "description": "Team identifier, e.g. payments"
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+              "description": "Calendar month, YYYY-MM",
+              "examples": [
+                "2026-09"
+              ],
+              "title": "Month"
+            },
+            "description": "Calendar month, YYYY-MM"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 20,
+              "minimum": 1,
+              "default": 10,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ResourceCost"
+                  },
+                  "title": "Response Top Resources V1 Teams  Team Id  Resources Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/teams/{team_id}/daily": {
+      "get": {
+        "tags": [
+          "costs"
+        ],
+        "summary": "Daily Costs",
+        "operationId": "daily_costs_v1_teams__team_id__daily_get",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9-]{2,40}$",
+              "description": "Team identifier, e.g. payments",
+              "title": "Team Id"
+            },
+            "description": "Team identifier, e.g. payments"
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "description": "Last day included, YYYY-MM-DD",
+              "title": "End"
+            },
+            "description": "Last day included, YYYY-MM-DD"
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 90,
+              "minimum": 1,
+              "default": 30,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DailyCost"
+                  },
+                  "title": "Response Daily Costs V1 Teams  Team Id  Daily Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CostRecord": {
+        "properties": {
+          "billing_account_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Billing Account Id"
+          },
+          "sub_account_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub Account Id"
+          },
+          "service_provider_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Provider Name"
+          },
+          "service_name": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Service Name"
+          },
+          "service_category": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "AI and Machine Learning",
+                  "Analytics",
+                  "Business Applications",
+                  "Compute",
+                  "Databases",
+                  "Developer Tools",
+                  "Multicloud",
+                  "Identity",
+                  "Integration",
+                  "Internet of Things",
+                  "Management and Governance",
+                  "Media",
+                  "Migration",
+                  "Mobile",
+                  "Networking",
+                  "Security",
+                  "Storage",
+                  "Web",
+                  "Other"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Category"
+          },
+          "charge_category": {
+            "type": "string",
+            "enum": [
+              "Usage",
+              "Purchase",
+              "Tax",
+              "Credit",
+              "Adjustment"
+            ],
+            "title": "Charge Category"
+          },
+          "charge_period_start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Charge Period Start"
+          },
+          "charge_period_end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Charge Period End"
+          },
+          "billing_period_start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billing Period Start"
+          },
+          "billed_cost": {
+            "type": "string",
+            "title": "Billed Cost"
+          },
+          "effective_cost": {
+            "type": "string",
+            "title": "Effective Cost"
+          },
+          "list_cost": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "List Cost"
+          },
+          "billing_currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "title": "Billing Currency"
+          },
+          "region_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region Id"
+          },
+          "resource_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Id"
+          },
+          "tags": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Tags"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "billing_account_id",
+          "service_name",
+          "charge_category",
+          "charge_period_start",
+          "charge_period_end",
+          "billed_cost",
+          "effective_cost",
+          "billing_currency"
+        ],
+        "title": "CostRecord",
+        "description": "One FOCUS cost row.\n\nAccepts FOCUS names (``EffectiveCost``) or snake_case names (``effective_cost``)\non input and always serializes as snake_case."
+      },
+      "DailyCost": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "effective_cost": {
+            "type": "string",
+            "title": "Effective Cost"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "effective_cost"
+        ],
+        "title": "DailyCost"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Page": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CostRecord"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Offset"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "limit",
+          "offset",
+          "next_offset"
+        ],
+        "title": "Page",
+        "description": "A page of cost records. Clients follow ``next_offset`` until it is null."
+      },
+      "ResourceCost": {
+        "properties": {
+          "resource_id": {
+            "type": "string",
+            "title": "Resource Id"
+          },
+          "service_name": {
+            "type": "string",
+            "title": "Service Name"
+          },
+          "effective_cost": {
+            "type": "string",
+            "title": "Effective Cost"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resource_id",
+          "service_name",
+          "effective_cost"
+        ],
+        "title": "ResourceCost"
+      },
+      "ServiceCost": {
+        "properties": {
+          "service_name": {
+            "type": "string",
+            "title": "Service Name"
+          },
+          "effective_cost": {
+            "type": "string",
+            "title": "Effective Cost"
+          }
+        },
+        "type": "object",
+        "required": [
+          "service_name",
+          "effective_cost"
+        ],
+        "title": "ServiceCost"
+      },
+      "Team": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id"
+        ],
+        "title": "Team"
+      },
+      "TeamCostSummary": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "month": {
+            "type": "string",
+            "title": "Month",
+            "description": "YYYY-MM"
+          },
+          "currency": {
+            "type": "string",
+            "title": "Currency"
+          },
+          "total_effective_cost": {
+            "type": "string",
+            "title": "Total Effective Cost"
+          },
+          "total_billed_cost": {
+            "type": "string",
+            "title": "Total Billed Cost"
+          },
+          "top_services": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceCost"
+            },
+            "type": "array",
+            "title": "Top Services"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "month",
+          "currency",
+          "total_effective_cost",
+          "total_billed_cost",
+          "top_services"
+        ],
+        "title": "TeamCostSummary"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

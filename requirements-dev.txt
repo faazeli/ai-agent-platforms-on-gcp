@@ -1,0 +1,11 @@
+# One environment that runs every reference test suite (used by `make install` and course CI).
+-e ./phases/06-security-and-governance/solution/security[dev,fastapi,adk]
+-e ./phases/06-security-and-governance/solution/cost-api[dev,bigquery]
+-e ./phases/04-llm-gateway-and-vertex-ai/solution/llm-toolkit[dev,vertex]
+-e ./phases/05-multi-agent-adk-and-langgraph/solution/agents[dev,postgres]
+fastmcp>=3.4,<4
+google-adk[a2a]>=2.10,<3
+pytest>=8
+pytest-asyncio>=0.24
+pyyaml>=6
+ruff

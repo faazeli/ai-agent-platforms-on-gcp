@@ -1,0 +1,63 @@
+# The whole CostPilot stack on your laptop, from images built by the Dockerfiles here.
+# Run from the repo root:
+#   docker compose -f phases/09-devops-and-delivery/docker/compose.yaml up --build
+#
+# Auth is OFF in this file (local development only). Phase 6's Zero Trust settings
+# are turned on in the Kubernetes manifests.
+
+name: costpilot
+
+x-python-env: &python-env
+  PYTHONUNBUFFERED: "1"
+
+services:
+  cost-api:
+    build: {context: ../../.., dockerfile: phases/09-devops-and-delivery/docker/cost-api.Dockerfile}
+    environment:
+      <<: *python-env
+      COST_API_AUTH_ENABLED: "false"
+      COST_API_DATA_SOURCE: memory
+    ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz')"]
+      interval: 10s
+
+  mcp-finops:
+    build: {context: ../../.., dockerfile: phases/09-devops-and-delivery/docker/mcp-finops.Dockerfile}
+    environment:
+      <<: *python-env
+      MCP_FINOPS_AUTH_ENABLED: "false"
+      MCP_FINOPS_COST_API_URL: http://cost-api:8000
+    ports: ["8001:8001"]
+    depends_on: {cost-api: {condition: service_healthy}}
+
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    env_file: ../../04-llm-gateway-and-vertex-ai/gateway/.env
+    environment:
+      DATABASE_URL: postgresql://litellm:litellm@db:5432/litellm
+      GOOGLE_APPLICATION_CREDENTIALS: /secrets/adc.json
+    volumes:
+      - ../../04-llm-gateway-and-vertex-ai/gateway/config.yaml:/app/config.yaml:ro
+      - ${ADC_FILE:-~/.config/gcloud/application_default_credentials.json}:/secrets/adc.json:ro
+    ports: ["4000:4000"]
+    depends_on: {db: {condition: service_healthy}}
+
+  db:
+    image: postgres:16-alpine
+    environment: {POSTGRES_USER: litellm, POSTGRES_PASSWORD: litellm, POSTGRES_DB: litellm}
+    healthcheck: {test: ["CMD-SHELL", "pg_isready -U litellm"], interval: 5s, retries: 10}
+
+  agents:
+    build: {context: ../../.., dockerfile: phases/09-devops-and-delivery/docker/agents.Dockerfile}
+    environment:
+      <<: *python-env
+      COSTPILOT_GATEWAY_URL: http://litellm:4000
+      COSTPILOT_MCP_URL: http://mcp-finops:8001/mcp
+      COORDINATOR_VKEY: ${COORDINATOR_VKEY:?create keys with Phase 4's create_virtual_keys.sh}
+      COST_ANALYST_VKEY: ${COST_ANALYST_VKEY:?}
+      ANOMALY_DETECTOR_VKEY: ${ANOMALY_DETECTOR_VKEY:?}
+      RECOMMENDER_VKEY: ${RECOMMENDER_VKEY:?}
+    ports: ["8080:8080"]
+    depends_on: [mcp-finops, litellm]

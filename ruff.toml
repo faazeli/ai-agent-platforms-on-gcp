@@ -1,0 +1,9 @@
+line-length = 120
+
+[lint]
+select = ["E", "F", "B"]
+ignore = ["E501"]
+
+[lint.per-file-ignores]
+# Starters keep the imports learners will need for their TODOs.
+"**/starter/**" = ["F401", "F841"]

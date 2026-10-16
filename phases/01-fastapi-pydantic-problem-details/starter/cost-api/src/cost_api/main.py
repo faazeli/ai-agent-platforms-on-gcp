@@ -1,0 +1,102 @@
+"""cost-api: a typed HTTP API over FOCUS cost data.
+
+Run locally:
+    uvicorn cost_api.main:app --reload --app-dir src
+Then open http://127.0.0.1:8000/docs
+"""
+
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+from datetime import date
+from typing import Annotated
+
+from fastapi import Depends, FastAPI, Path, Query, Request
+
+from .models import DailyCost, Page, ResourceCost, Team, TeamCostSummary
+from .problems import ProblemError, install_problem_handlers
+from .repository import CostRepository, InMemoryCostRepository
+from .settings import Settings, get_settings
+
+MONTH_PATTERN = r"^\d{4}-(0[1-9]|1[0-2])$"
+TEAM_PATTERN = r"^[a-z0-9-]{2,40}$"
+
+TeamId = Annotated[str, Path(pattern=TEAM_PATTERN, description="Team identifier, e.g. payments")]
+Month = Annotated[str, Query(pattern=MONTH_PATTERN, description="Calendar month, YYYY-MM", examples=["2026-09"])]
+
+
+def build_repository(settings: Settings) -> CostRepository:
+    if settings.data_source == "bigquery":
+        try:
+            from .bigquery_repository import BigQueryCostRepository  # added in Phase 2
+        except ImportError as exc:  # pragma: no cover - depends on phase
+            raise RuntimeError("The BigQuery repository is added in Phase 2.") from exc
+        return BigQueryCostRepository.from_settings(settings)
+    return InMemoryCostRepository.from_csv(settings.sample_csv)
+
+
+def get_cost_repository(request: Request) -> CostRepository:
+    return request.app.state.repository
+
+
+async def require_known_team(
+    team_id: TeamId, repo: Annotated[CostRepository, Depends(get_cost_repository)]
+) -> str:
+    if team_id not in await repo.list_teams():
+        raise ProblemError(404, "team-not-found", "Unknown team",
+                           f"No cost data exists for team '{team_id}'. Call GET /v1/teams for valid ids.")
+    return team_id
+
+
+Repo = Annotated[CostRepository, Depends(get_cost_repository)]
+KnownTeam = Annotated[str, Depends(require_known_team)]
+
+
+def create_app(settings: Settings | None = None, repository: CostRepository | None = None) -> FastAPI:
+    settings = settings or get_settings()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        app.state.repository = repository or build_repository(settings)
+        yield
+
+    app = FastAPI(
+        title="cost-api",
+        version="1.0.0",
+        summary="FOCUS cost data for teams. Every error is RFC 9457 Problem Details.",
+        lifespan=lifespan,
+    )
+    install_problem_handlers(app, settings.problem_base_url)
+
+    @app.get("/healthz", tags=["ops"])
+    async def healthz() -> dict[str, str]:
+        return {"status": "ok"}
+
+    @app.get("/v1/teams", response_model=list[Team], tags=["costs"])
+    async def list_teams(repo: Repo):
+        return [Team(team_id=t) for t in await repo.list_teams()]
+
+    @app.get("/v1/teams/{team_id}/costs", response_model=Page, tags=["costs"])
+    async def team_costs(
+        team_id: KnownTeam,
+        month: Month,
+        repo: Repo,
+        service: Annotated[str | None, Query(max_length=80)] = None,
+        limit: Annotated[int, Query(ge=1, le=1000)] = 100,
+        offset: Annotated[int, Query(ge=0)] = 0,
+    ):
+        items = await repo.cost_records(team_id, month, service, limit + 1, offset)
+        has_more = len(items) > limit
+        return Page(items=items[:limit], limit=limit, offset=offset,
+                    next_offset=offset + limit if has_more else None)
+
+    # TODO Lab 1.3 (d): add three endpoints, following the pattern of team_costs above:
+    #   GET /v1/teams/{team_id}/summary?month=YYYY-MM  -> TeamCostSummary
+    #       raise ProblemError(404, "no-cost-data", ...) when the repo returns None
+    #   GET /v1/teams/{team_id}/resources?month=&limit= -> list[ResourceCost], limit 1..20, default 10
+    #   GET /v1/teams/{team_id}/daily?end=YYYY-MM-DD&days= -> list[DailyCost], days 1..90, default 30
+
+    return app
+
+
+app = create_app()

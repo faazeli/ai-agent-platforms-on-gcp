@@ -1,0 +1,25 @@
+{
+  "team_id": "payments",
+  "month": "2026-09",
+  "currency": "USD",
+  "total_effective_cost": "5807.5053",
+  "total_billed_cost": "6052.0071",
+  "top_services": [
+    {
+      "service_name": "BigQuery",
+      "effective_cost": "2744.7110"
+    },
+    {
+      "service_name": "Compute Engine",
+      "effective_cost": "1793.0132"
+    },
+    {
+      "service_name": "Cloud Run",
+      "effective_cost": "695.9750"
+    },
+    {
+      "service_name": "Cloud Storage",
+      "effective_cost": "573.8061"
+    }
+  ]
+}

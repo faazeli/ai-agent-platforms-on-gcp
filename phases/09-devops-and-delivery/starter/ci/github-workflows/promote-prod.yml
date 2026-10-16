@@ -1,0 +1,32 @@
+# Promote exactly what runs in dev to prod (Lab 9.5). Manual trigger, and the
+# "production" environment requires an approver. Argo CD's prod app then shows
+# the diff, and a human syncs it.
+
+name: promote-prod
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: imranismail/setup-kustomize@v2
+      - name: Copy dev image digests into the prod overlay
+        run: |
+          DEV=phases/09-devops-and-delivery/deploy/k8s/overlays/dev
+          PROD=phases/09-devops-and-delivery/deploy/k8s/overlays/prod
+          for svc in cost-api mcp-finops agents; do
+            digest=$(kustomize build "$DEV" | grep -o "costpilot/${svc}@sha256:[a-f0-9]*" | head -1 | cut -d@ -f2)
+            [ -n "$digest" ] || { echo "no digest for $svc in dev"; exit 1; }
+            (cd "$PROD" && kustomize edit set image "${svc}=${{ vars.PROD_REGISTRY }}/${svc}@${digest}")
+          done
+      - run: |
+          git config user.name "costpilot-ci"
+          git config user.email "costpilot-ci@users.noreply.github.com"
+          git commit -am "deploy(prod): promote dev digests" && git push
