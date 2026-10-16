@@ -2,7 +2,7 @@
 
 **From FinOps data to secure, governed multi-agent systems. A hands-on course in ten phases.**
 
-[![course-ci](https://github.com/YOUR_ORG/YOUR_REPO/actions/workflows/course-ci.yml/badge.svg)](.github/workflows/course-ci.yml)
+[![course-ci](https://github.com/faazeli/ai-agent-platforms-on-gcp/actions/workflows/course-ci.yml/badge.svg)](https://github.com/faazeli/ai-agent-platforms-on-gcp/actions/workflows/course-ci.yml)
 [![Code: MIT](https://img.shields.io/badge/code-MIT-blue.svg)](LICENSE)
 [![Docs: CC BY 4.0](https://img.shields.io/badge/docs-CC%20BY%204.0-lightgrey.svg)](LICENSE-docs)
 
@@ -75,7 +75,7 @@ Each lab ends with a **Check** you can run. Each phase ends with **Done when**, 
 ## Quick start
 
 ```bash
-git clone https://github.com/YOUR_ORG/YOUR_REPO.git && cd YOUR_REPO
+git clone https://github.com/faazeli/ai-agent-platforms-on-gcp.git && cd ai-agent-platforms-on-gcp
 python data/generate_sample.py                 # the synthetic FOCUS dataset every phase uses
 cd phases/01-fastapi-pydantic-problem-details/starter/cost-api
 python -m venv .venv && source .venv/bin/activate
