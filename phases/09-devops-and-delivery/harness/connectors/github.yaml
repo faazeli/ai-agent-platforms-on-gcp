@@ -1,0 +1,25 @@
+# Read access to your copy of the course repository. The token is a Harness secret
+# (fine-grained PAT, read-only on this one repo); its value never appears in Git.
+connector:
+  name: github
+  identifier: github
+  description: Course repository
+  orgIdentifier: default
+  projectIdentifier: costpilot
+  type: Github
+  spec:
+    url: https://github.com/YOUR_GITHUB_USER/ai-agent-platforms-on-gcp
+    validationRepo: ai-agent-platforms-on-gcp
+    authentication:
+      type: Http
+      spec:
+        type: UsernameToken
+        spec:
+          username: YOUR_GITHUB_USER
+          tokenRef: github_pat
+    apiAccess:
+      type: Token
+      spec:
+        tokenRef: github_pat
+    executeOnDelegate: false
+    type: Repo

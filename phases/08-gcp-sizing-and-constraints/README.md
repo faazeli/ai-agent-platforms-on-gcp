@@ -137,6 +137,7 @@ Present the workload model as one slide: assumptions on the left, peak TPM and m
 - Extend the model with a second traffic class (scheduled monthly reports via batch) and compare its cost with live calls.
 - Add regional failover to the options table: what would serving from two regions cost, and what would it buy?
 - Model the BigQuery side too: bytes scanned per question × questions per month, against on-demand pricing versus a small editions reservation.
+- If you did Lab 5.9: add anomaly triage as a traffic class (anomalies per day × one decision call each). Compare a decision API billed per call (check TypeSafe AI's current pricing) with the `fast` model's tokens per triage, and include the human-review minutes each decider's coverage implies. People are usually the largest line.
 
 ## Troubleshooting
 

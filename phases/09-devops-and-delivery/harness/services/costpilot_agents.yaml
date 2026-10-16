@@ -1,0 +1,67 @@
+# The Harness service: what is deployed (manifests) and from which artifact.
+#
+# Manifests: Harness runs `kustomize build` on harness/kustomize/<env>, which layers
+# Harness-specific settings on the SAME overlays Argo CD syncs in the GitHub track,
+# then applies the Kustomize Patches below. Harness expressions (<+...>) are
+# resolved only in patch files, never in kustomization.yaml or the base manifests.
+service:
+  name: costpilot_agents
+  identifier: costpilot_agents
+  orgIdentifier: default
+  projectIdentifier: costpilot
+  description: CostPilot agents (canaried) plus cost-api, mcp-finops and litellm (applied directly)
+  tags:
+    course: phase-09
+  serviceDefinition:
+    type: Kubernetes
+    spec:
+      manifests:
+        - manifest:
+            identifier: costpilot
+            type: Kustomize
+            spec:
+              store:
+                type: Github
+                spec:
+                  connectorRef: github
+                  gitFetchType: Branch
+                  branch: main
+                  # The base path must contain everything the kustomization references
+                  # (../../deploy/k8s/overlays/<env> lives under it).
+                  folderPath: phases/09-devops-and-delivery
+              overlayConfiguration:
+                kustomizeYamlFolderPath: harness/kustomize/<+env.identifier>
+              pluginPath: ""
+              skipResourceVersioning: false
+              enableDeclarativeRollback: false
+        - manifest:
+            identifier: images
+            type: KustomizePatches
+            spec:
+              store:
+                type: Github
+                spec:
+                  connectorRef: github
+                  gitFetchType: Branch
+                  branch: main
+                  paths:
+                    - phases/09-devops-and-delivery/harness/kustomize/patches/images.yaml
+      artifacts:
+        # The primary artifact is what Harness tracks in its dashboards and what
+        # Continuous Verification compares across versions. The manifests deploy the
+        # exact digests the build stage attested (see patches/images.yaml).
+        primary:
+          primaryArtifactRef: agents
+          sources:
+            - identifier: agents
+              type: GoogleArtifactRegistry
+              spec:
+                connectorRef: gcp_delegate
+                project: <+pipeline.variables.gcp_project>
+                region: us-central1
+                repositoryName: costpilot
+                package: agents
+                repositoryType: docker
+                version: <+codebase.commitSha>
+      variables: []
+  gitOpsEnabled: false

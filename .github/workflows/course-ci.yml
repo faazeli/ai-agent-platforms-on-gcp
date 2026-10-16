@@ -35,17 +35,19 @@ jobs:
       - uses: imranismail/setup-kustomize@v2
       - uses: opentofu/setup-opentofu@v1
         with: {tofu_version: 1.10.6}
-      - name: Install kubeconform, hadolint, actionlint
+      - name: Install kubeconform, hadolint, actionlint, opa, shellcheck
         run: |
           mkdir -p "$HOME/bin" && cd "$HOME/bin"
           curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz | tar xz kubeconform
           curl -sSL -o hadolint https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64 && chmod +x hadolint
           curl -sSL https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz | tar xz actionlint
+          curl -sSL -o opa https://github.com/open-policy-agent/opa/releases/download/v1.4.2/opa_linux_amd64_static && chmod +x opa
+          curl -sSL https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz | tar xJ --strip-components=1 shellcheck-v0.10.0/shellcheck
           echo "$HOME/bin" >> "$GITHUB_PATH"
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
-      - run: pip install pytest pyyaml
-      - name: Phase 9 checks (kustomize, kubeconform, hadolint, actionlint, tofu fmt)
+      - run: pip install pytest pyyaml jsonschema
+      - name: Phase 9 checks (kustomize, kubeconform, hadolint, actionlint, tofu fmt; Harness schema, OPA, shellcheck)
         working-directory: phases/09-devops-and-delivery
         run: pytest -q tests
 

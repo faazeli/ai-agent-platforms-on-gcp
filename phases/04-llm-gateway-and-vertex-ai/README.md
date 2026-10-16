@@ -130,6 +130,8 @@ Never `eval` model output, and never return unvalidated data "just this once".
 
 **Check:** `pytest -q` passes. Then measure: run the eval 3 times with `response_format` and 3 times with it removed (edit a copy of the runner), and record parse failures and repairs in an ADR.
 
+Structured output guarantees the *shape* of an answer, not whether its numbers are trustworthy. When the output is a decision (pick a category, yes or no) with a confidence attached, accuracy isn't enough: you also need to know whether the confidence means anything. Phase 5's Lab 5.9 compares this repair loop with a model that returns real probabilities, and measures calibration for both.
+
 ### Lab 4.5 — The wider Vertex AI platform
 
 Six short exercises. Record everything in `vertex/field-notes-template.md`; Phase 8 sizes the platform from it.

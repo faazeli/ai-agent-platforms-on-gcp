@@ -32,7 +32,7 @@ metadata:
 spec:
   podSelector:
     matchExpressions:
-      - {key: app, operator: In, values: [cost-api, agents, litellm, mcp-finops]}
+      - {key: app, operator: In, values: [cost-api, agents, litellm, mcp-finops, agent-evals]}
   policyTypes: [Egress]
   egress:
     - to:
@@ -60,6 +60,21 @@ spec:
     - to: [{podSelector: {matchLabels: {app: mcp-finops}}}]
       ports: [{protocol: TCP, port: 8001}]
 ---
+# Canary eval jobs (Argo AnalysisRun or Harness step) run the agents image with the
+# label app=agent-evals: same calls as the agents, but not selected by the agents Service.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: agent-evals-to-gateway-and-mcp
+spec:
+  podSelector: {matchLabels: {app: agent-evals}}
+  policyTypes: [Egress]
+  egress:
+    - to: [{podSelector: {matchLabels: {app: litellm}}}]
+      ports: [{protocol: TCP, port: 4000}]
+    - to: [{podSelector: {matchLabels: {app: mcp-finops}}}]
+      ports: [{protocol: TCP, port: 8001}]
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -68,7 +83,9 @@ spec:
   podSelector: {matchLabels: {app: litellm}}
   policyTypes: [Ingress]
   ingress:
-    - from: [{podSelector: {matchLabels: {app: agents}}}]
+    - from:
+        - podSelector: {matchLabels: {app: agents}}
+        - podSelector: {matchLabels: {app: agent-evals}}
       ports: [{protocol: TCP, port: 4000}]
 ---
 apiVersion: networking.k8s.io/v1
@@ -79,7 +96,9 @@ spec:
   podSelector: {matchLabels: {app: mcp-finops}}
   policyTypes: [Ingress, Egress]
   ingress:
-    - from: [{podSelector: {matchLabels: {app: agents}}}]
+    - from:
+        - podSelector: {matchLabels: {app: agents}}
+        - podSelector: {matchLabels: {app: agent-evals}}
       ports: [{protocol: TCP, port: 8001}]
   egress:
     - to: [{podSelector: {matchLabels: {app: cost-api}}}]

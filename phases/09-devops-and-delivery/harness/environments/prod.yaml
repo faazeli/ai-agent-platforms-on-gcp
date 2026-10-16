@@ -1,0 +1,10 @@
+environment:
+  name: prod
+  identifier: prod
+  description: CostPilot prod
+  tags:
+    course: phase-09
+  type: Production
+  orgIdentifier: default
+  projectIdentifier: costpilot
+  variables: []

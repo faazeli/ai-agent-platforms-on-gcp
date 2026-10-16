@@ -28,3 +28,4 @@ spec:
 #   - agents -> litellm:4000 and agents -> mcp-finops:8001 (egress) + matching ingress rules
 #   - mcp-finops -> cost-api:8000; cost-api accepts only mcp-finops and ledger-java
 #   - agents accept ingress on 8080 from inside the VPC
+#   - canary eval job pods (label app=agent-evals) may call litellm and mcp-finops like the agents

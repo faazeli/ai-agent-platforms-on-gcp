@@ -1,0 +1,10 @@
+environment:
+  name: dev
+  identifier: dev
+  description: CostPilot dev
+  tags:
+    course: phase-09
+  type: PreProduction
+  orgIdentifier: default
+  projectIdentifier: costpilot
+  variables: []

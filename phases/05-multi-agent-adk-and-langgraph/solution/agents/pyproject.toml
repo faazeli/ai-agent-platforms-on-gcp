@@ -18,6 +18,8 @@ dependencies = [
 [project.optional-dependencies]
 postgres = ["langgraph-checkpoint-postgres>=2"]
 agent-engine = ["google-cloud-aiplatform[agent_engines,adk]"]
+# Lab 5.9: TypeSafe AI's official SDK. NOT "typesafe-ai", an unrelated name on PyPI.
+jev = ["typesafe-sdk>=0.7.5,<0.8"]
 dev = ["pytest>=8", "pytest-asyncio>=0.24"]
 
 [build-system]

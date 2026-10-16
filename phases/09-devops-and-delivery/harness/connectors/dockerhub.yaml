@@ -1,0 +1,15 @@
+# Anonymous Docker Hub access for public step images (python, maven, trivy, cloud-sdk).
+# Better: mirror them into Artifact Registry and point this connector there.
+connector:
+  name: dockerhub
+  identifier: dockerhub
+  description: Public images for CI steps
+  orgIdentifier: default
+  projectIdentifier: costpilot
+  type: DockerRegistry
+  spec:
+    dockerRegistryUrl: https://index.docker.io/v2/
+    providerType: DockerHub
+    auth:
+      type: Anonymous
+    executeOnDelegate: true

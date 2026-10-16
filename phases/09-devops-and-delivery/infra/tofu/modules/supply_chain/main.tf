@@ -76,3 +76,4 @@ resource "google_binary_authorization_policy" "policy" {
 
 output "attestor" { value = google_binary_authorization_attestor.built_by_ci.name }
 output "kms_key_version" { value = data.google_kms_crypto_key_version.attestor.id }
+output "attestor_key_id" { value = google_kms_crypto_key.attestor.id }

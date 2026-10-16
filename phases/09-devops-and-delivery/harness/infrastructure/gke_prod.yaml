@@ -1,0 +1,18 @@
+# Where the prod environment runs. The connector inherits the delegate's in-cluster
+# credentials, so Harness never stores a kubeconfig or a cluster token.
+infrastructureDefinition:
+  name: gke_prod
+  identifier: gke_prod
+  description: GKE Autopilot cluster for prod
+  tags:
+    course: phase-09
+  orgIdentifier: default
+  projectIdentifier: costpilot
+  environmentRef: prod
+  deploymentType: Kubernetes
+  type: KubernetesDirect
+  spec:
+    connectorRef: gke_delegate_prod
+    namespace: costpilot
+    releaseName: costpilot-prod
+  allowSimultaneousDeployments: false

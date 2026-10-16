@@ -1,0 +1,52 @@
+# What the delegate may do, and the identity CI build pods run as.
+#
+# The delegate is installed with k8sPermissionsType=NAMESPACE_ADMIN, so by default it
+# can only manage its own namespace. These bindings add exactly two more:
+#   costpilot       deploy the platform, run the eval Job, read its logs
+#   harness-builds  run CI build pods
+# The built-in "admin" ClusterRole, bound per namespace, cannot create namespaces,
+# CRDs or cluster-wide RBAC. install.sh replaces DELEGATE_SA and PROJECT_ID.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: harness-builds
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: harness-delegate-deployer
+  namespace: costpilot
+subjects:
+  - kind: ServiceAccount
+    name: DELEGATE_SA
+    namespace: harness-delegate-ng
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: harness-delegate-builder
+  namespace: harness-builds
+subjects:
+  - kind: ServiceAccount
+    name: DELEGATE_SA
+    namespace: harness-delegate-ng
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+---
+# Build pods run as this KSA; Workload Identity maps it to the harness-builder GSA
+# (push images, sign with KMS, create attestations). No key file anywhere.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: harness-builder
+  namespace: harness-builds
+  annotations:
+    iam.gke.io/gcp-service-account: harness-builder@PROJECT_ID.iam.gserviceaccount.com

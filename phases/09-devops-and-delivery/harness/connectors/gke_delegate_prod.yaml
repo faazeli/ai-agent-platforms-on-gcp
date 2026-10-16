@@ -1,0 +1,14 @@
+# Kubernetes access for prod through a delegate running INSIDE that cluster: the
+# delegate uses its own service account (RBAC in delegate/rbac.yaml). Nothing to store.
+connector:
+  name: gke_delegate_prod
+  identifier: gke_delegate_prod
+  description: GKE prod via the in-cluster delegate
+  orgIdentifier: default
+  projectIdentifier: costpilot
+  type: K8sCluster
+  spec:
+    credential:
+      type: InheritFromDelegate
+    delegateSelectors:
+      - costpilot-gke-prod

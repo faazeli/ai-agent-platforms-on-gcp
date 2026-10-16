@@ -19,6 +19,7 @@ This folder was tested with **google-adk 2.12.0** and **LangGraph 1.2.15**. ADK 
 - Evaluating agents on both the answer and the path (tool trajectory)
 - LangChain building blocks and a LangGraph state machine with checkpoints and human-in-the-loop interrupts
 - Deploying to Vertex AI Agent Engine, and comparing it with self-hosting
+- Typed decisions with calibrated probabilities (TypeSafe AI's Jev): act when sure, defer when not, and measure calibration
 
 ## Before you start
 
@@ -30,7 +31,7 @@ This folder was tested with **google-adk 2.12.0** and **LangGraph 1.2.15**. ADK 
 ```bash
 cd phases/05-multi-agent-adk-and-langgraph/starter/agents
 pip install -e ../../../04-llm-gateway-and-vertex-ai/solution/llm-toolkit   # Phase 4 toolkit
-pip install -e ".[dev,postgres]"
+pip install -e ".[dev,postgres,jev]"     # jev: Lab 5.9's SDK (typesafe-sdk)
 pytest -q
 ```
 
@@ -48,6 +49,9 @@ starter/agents, solution/agents
     langgraph_report/graph.py the report as a LangGraph state machine (Lab 5.7)
     langgraph_report/live.py  LangChain wiring: gateway chat model, MCP tools (Lab 5.6)
     langgraph_report/run.py   CLI with Postgres checkpoints and approval
+    typed_decisions/          anomaly triage with calibrated probabilities: mock, Jev and LLM deciders,
+                              a confidence policy, a LangGraph approval flow, calibration metrics (Lab 5.9)
+  evals/triage_evalset.jsonl  18 labeled anomaly cases for Lab 5.9
   adk_apps/                   `adk web` apps: costpilot, monthly_report
   drills/injection_drill.py   live prompt-injection drill (Lab 5.4)
   agent_engine/deploy.py      deploy / query / delete on Agent Engine (Lab 5.8)
@@ -187,6 +191,39 @@ python agent_engine/deploy.py ask --engine <name> "How much did payments spend i
 
 The deployed agent must reach your gateway and MCP server, which are on `localhost` until Phase 9. For this lab, either expose them temporarily on Cloud Run (Phase 8 uses Cloud Run as one of the compared runtimes) or do the deployment comparison after Phase 9. Record cold start, p95 latency, cost per 1,000 questions and operational effort, then **delete the engine**: `python agent_engine/deploy.py delete --engine <name>`. Phase 8 uses these numbers.
 
+### Lab 5.9 — Typed decisions with calibrated confidence (optional)
+
+Agents *write*; many steps in an agent system only need to *decide*: pick one of five causes, say yes or no, rate urgency 0–3. Asking a chat model for those gets you text to parse, plus a "confidence" the model invents. A classifier built for decisions, such as **[Jev from TypeSafe AI](https://typesafe.ai/)**, returns a probability for every option in one call: `Noul` (yes/no), `Choice` (one of N), `Score` (a rubric level). Probabilities you can trust let code do something chat output can't: **act when sure, ask a person when not, and measure whether "90% sure" means 90%.**
+
+The use case: when `detect_anomalies` finds a spike, triage it. Is it a real problem, or the monthly commitment fee? What caused it? How urgent is it? Get it wrong one way and a runaway job burns money all weekend; get it wrong the other way and the team learns to ignore CostPilot.
+
+```
+anomaly + context ─► decider ─► P(real), P(each cause), P(each urgency level)
+                     mock | jev | llm            │
+                                    policy.py ◄──┘  (thresholds you own, versioned)
+                                        │
+        dismiss ◄─ P(real) < 0.15       ├─ review ◄─ unsure, cause unclear, late, or API error
+        notify ◄── daily budget used    └─ propose_ticket ─► human approval (Lab 5.7's interrupt) ─► ticket
+```
+
+1. **Supply chain first.** The SDK is `typesafe-sdk` on PyPI (import `typesafe_sdk`). A package named `typesafe-ai` also exists on PyPI and is *not* the SDK. Guessable names like that one are exactly what attackers register when coding assistants hallucinate package names ("slopsquatting"). Take package names from the vendor's docs, never from memory or a model, and pin them: `pip install -e ".[jev]"`.
+2. Read `typed_decisions/deciders.py`. All three deciders share one interface, and `with_deadline` turns a late answer or an API error into "unsure", never into an action. That idea comes from [jev-trader](https://github.com/jarrodwatts/jev-trader), which holds whenever the model misses a block, starts on a mock model and only dry-runs without credentials. In the starter, write `JevDecider.questions()` and `decide()`. The tests drive the **real SDK** against a fake System One server (`httpx2.MockTransport`), so they check the exact request and response format with no key and no network.
+3. Write `policy.route()` in the starter. The decider estimates and the policy decides. Each threshold is a statement about what mistakes cost, so it lives in reviewed, versioned code, like a prompt.
+4. Run the comparison on the labeled set:
+
+```bash
+python -m costpilot_agents.typed_decisions.run_eval --decider mock
+TYPESAFE_API_KEY=... python -m costpilot_agents.typed_decisions.run_eval --decider jev
+python -m costpilot_agents.typed_decisions.run_eval --decider llm --gateway http://localhost:4000
+```
+
+   Compare the three on **Brier score** and **calibration error** (are the probabilities honest?), **coverage** (how much was decided without a person), **missed real problems** (dismissed but real: the expensive mistake), **false-alarm proposals**, latency and tokens. The mock is safe but useless: it sends 16 of 18 cases to a person. Self-reported LLM confidence often clusters near 0.9 whether the answer is right or not. Your calibration report shows whether yours does. Read the traps in the eval set (`t07`, `t16`): a calendar entry that explains a *different* service, and an announced training run at four times its budget.
+5. Wire it into the flow: `typed_decisions/graph.py` runs decide → route → review or approval → ticket → log. Only a person's resume value creates a ticket. Every outcome is logged with its probabilities and policy version, and people's answers become labels. Re-running `run_eval` on last month's log tells you whether the decider is still calibrated on *your* data.
+
+Before you send cost data to any third-party API, check it against Phase 6's data classification. `AnomalyCase.as_state()` sends team ids, services and amounts, but no people, no resource names and no secrets. Ask whether your organization allows even that. In production, the key goes in Secret Manager like the gateway keys, and egress to `api.typesafe.ai` shows up in your NetworkPolicy review (Phase 9).
+
+In TypeScript, the same calls are available through the AI SDK's `experimental_evaluate` with the TypeSafe provider, as jev-trader does.
+
 ## Done when
 
 - [ ] The coordinator answers your eval set at the pass rate you chose and wrote down
@@ -195,12 +232,14 @@ The deployed agent must reach your gateway and MCP server, which are on `localho
 - [ ] The monthly report runs as an ADK `Workflow` and as a LangGraph graph, with a comparison ADR
 - [ ] A LangGraph run survives a kill and resumes from its Postgres checkpoint
 - [ ] You have numbers from Agent Engine for Phase 8 (and deleted the engine)
+- [ ] (Lab 5.9) Your triage ADR compares mock, Jev and LLM deciders on calibration, coverage and missed problems
 
 ## Write it down (ADRs)
 
 - `0005-routing-vs-workflows.md` (Lab 5.2)
 - `0006-execution-boundaries.md` (Lab 5.3): the five policies and where each is enforced
 - `0007-adk-vs-langgraph.md` (Lab 5.7)
+- `0017-typed-decisions.md` (Lab 5.9, optional): which decider triages anomalies, the thresholds, and the evidence
 
 ## Teach it (5 minutes)
 

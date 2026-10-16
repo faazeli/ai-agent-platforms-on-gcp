@@ -1,0 +1,44 @@
+# Run the pipeline on every push to main (the GitHub track's app-ci "push" event).
+# Pull requests stay on the fast GitHub Actions checks; Harness runs what ships.
+trigger:
+  name: push_main
+  identifier: push_main
+  enabled: true
+  orgIdentifier: default
+  projectIdentifier: costpilot
+  pipelineIdentifier: costpilot
+  source:
+    type: Webhook
+    spec:
+      type: Github
+      spec:
+        type: Push
+        spec:
+          connectorRef: github
+          autoAbortPreviousExecutions: false
+          payloadConditions:
+            - key: targetBranch
+              operator: Equals
+              value: main
+          headerConditions: []
+          actions: []
+  inputYaml: |
+    pipeline:
+      identifier: costpilot
+      properties:
+        ci:
+          codebase:
+            build:
+              type: branch
+              spec:
+                branch: <+trigger.branch>
+      variables:
+        - name: gcp_project
+          type: String
+          value: YOUR_DEV_PROJECT_ID
+        - name: cosign_key
+          type: String
+          value: gcpkms://projects/YOUR_DEV_PROJECT_ID/locations/global/keyRings/costpilot-harness/cryptoKeys/cosign
+        - name: attestor_key_version
+          type: String
+          value: projects/YOUR_DEV_PROJECT_ID/locations/global/keyRings/costpilot-binauthz/cryptoKeys/built-by-ci/cryptoKeyVersions/1

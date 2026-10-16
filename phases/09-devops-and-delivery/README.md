@@ -45,6 +45,7 @@ deploy/rollouts/ agents canary gated by in-cluster agent evals
 ci/github-workflows/  app-ci, eval-gate, infra, promote-prod  (copy to .github/workflows/)
 observability/   OpenTelemetry setup, SLO definitions
 dora/            DORA metrics from a deployments log
+harness/         Track B: the same pipeline in Harness (CI, eval-gated canary, CV, approvals, OPA)
 tests/           offline checks for all of the above
 starter/         the same tree with gaps for Labs 9.1–9.4 (work here)
 ```
@@ -55,6 +56,22 @@ pip install pyyaml pytest
 pytest -q starter/tests     # fails until the starter gaps are filled; uses kustomize/kubeconform/hadolint/actionlint/tofu if installed
 pytest -q tests             # the reference passes
 ```
+
+## Two tracks for delivery
+
+Labs 9.1–9.3 (images, infrastructure, cluster) are shared. Delivery then comes in two tracks that ship the **same platform through the same gates**:
+
+| | Track A: GitHub Actions + Argo (Labs 9.4–9.6) | Track B: Harness ([`harness/`](harness/), Labs 9.H1–9.H7) |
+| --- | --- | --- |
+| Model | Assemble best-of-breed open tools; Git is the glue | One platform for CI, CD, verification, approvals and audit |
+| Deploy style | GitOps pull (Argo CD syncs from Git) | Push from inside the cluster (delegate runs tasks) |
+| Canary judged by | Agent evals in an Argo AnalysisRun | The **same** agent eval Job as a pipeline step, plus optional ML-based Continuous Verification |
+| Credentials | GitHub OIDC → Workload Identity Federation | Delegate and build pods use Workload Identity |
+| Signing | cosign keyless (Sigstore) | cosign with a Cloud KMS key |
+| Guardrails | Branch protection, protected environments | OPA policies on the pipeline, approver ≠ executor |
+| You operate | Argo CD, Argo Rollouts | A delegate; Harness itself is SaaS |
+
+Do Track A first: it shows every moving part. Track B is optional, and most useful if your organization uses Harness or is choosing a delivery platform. Lab 9.H7 compares the tracks with measurements from your own runs.
 
 ## Labs
 
@@ -172,6 +189,7 @@ kubectl apply -f deploy/rollouts/agents-canary.yaml
 
 - `0014-delivery-pipeline.md`: GitOps versus push deploys; canary analysis with evals; what blocks a release
 - `0015-supply-chain.md`: which SLSA level you claim and why; signing and admission policy
+- `0016-delivery-platform.md` (if you did Track B): Track A or Track B for your team, backed by Lab 9.H7's measurements
 
 ## Teach it (5 minutes)
 

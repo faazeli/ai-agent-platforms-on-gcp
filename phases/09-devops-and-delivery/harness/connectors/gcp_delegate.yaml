@@ -1,0 +1,21 @@
+# Google Cloud access that inherits the delegate's identity: on GKE, Workload Identity
+# maps the delegate's KSA to the harness-delegate GSA (Artifact Registry reader).
+# CI build pods use their own KSA (harness-builder) the same way.
+#
+# Alternative without a delegate in GCP (e.g. Harness Cloud builds): credential type
+# OidcAuthentication with workloadPoolId, providerId, gcpProjectId (project NUMBER)
+# and serviceAccountEmail; Harness's OIDC issuer is
+# https://app.harness.io/ng/api/oidc/account/<ACCOUNT_ID> (host depends on your cluster).
+connector:
+  name: gcp_delegate
+  identifier: gcp_delegate
+  description: GCP via the delegate's Workload Identity
+  orgIdentifier: default
+  projectIdentifier: costpilot
+  type: Gcp
+  spec:
+    credential:
+      type: InheritFromDelegate
+    delegateSelectors:
+      - costpilot-gke-dev
+    executeOnDelegate: true

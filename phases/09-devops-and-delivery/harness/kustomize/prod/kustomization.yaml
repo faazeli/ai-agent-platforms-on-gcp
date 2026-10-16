@@ -1,0 +1,29 @@
+# Harness view of the prod environment: the exact overlay Argo CD syncs in the
+# GitHub track, plus what Harness needs to know.
+#
+# Harness canary steps manage ONE workload per release. "agents" is that workload;
+# the others are marked direct-apply, so Harness applies them as-is on every deploy
+# (the same thing Argo CD does for them). Harness appends the Kustomize Patches
+# from the service (patches/images.yaml) when it builds this folder.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../deploy/k8s/overlays/prod
+patches:
+  - target: {kind: Deployment, name: "cost-api|mcp-finops|litellm"}
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: any   # the target selects the Deployments; existing annotations are kept
+        annotations:
+          harness.io/direct-apply: "true"
+  # The namespace is created once by delegate/install.sh. The delegate may manage
+  # what is INSIDE costpilot, but not create or change namespaces.
+  - target: {kind: Namespace, name: costpilot}
+    patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: costpilot

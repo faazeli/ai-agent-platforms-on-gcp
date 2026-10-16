@@ -58,6 +58,8 @@ spec:
           spec:
             backoffLimit: 0
             template:
+              metadata:
+                labels: {app: agent-evals}   # NetworkPolicy allows exactly what the agents may call
               spec:
                 serviceAccountName: agents
                 restartPolicy: Never

@@ -8,11 +8,11 @@ Prices change; the figures below are rough guides from when the course was writt
 | 2 | BigQuery storage and queries | ≈ $0, within the free tier | Always filter on the partition column; keep `maximum_bytes_billed` |
 | 3 | nothing (local) | $0 | |
 | 4 | Vertex AI model calls; optional Model Garden endpoint, RAG corpus, batch | $5–20 | Low virtual-key budgets; small eval runs; **undeploy endpoints and delete corpora right after** |
-| 5 | model calls; Agent Engine while deployed | $5–15 | Short drills; **delete the Agent Engine deployment** after measuring |
+| 5 | model calls; Agent Engine while deployed | $5–15 | Short drills; **delete the Agent Engine deployment** after measuring. Lab 5.9 (optional) makes 18 TypeSafe AI calls per eval run on your own account: check its pricing first |
 | 6 | Model Armor calls; a small bucket | $1–5 | Short retention on the lab audit bucket (locking is permanent) |
 | 7 | a few model calls | ≈ $1 | |
 | 8 | load tests (model calls) | $5–20 | 10-minute runs with few simulated users |
-| 9 | GKE Autopilot pods, load balancer, Artifact Registry | ≈ $3–6 per day while running | **`tofu destroy` whenever you stop for more than a day** |
+| 9 | GKE Autopilot pods, load balancer, Artifact Registry | ≈ $3–6 per day while running | **`tofu destroy` whenever you stop for more than a day**. Track B adds a Harness account (check the current free-plan limits) and a delegate pod; uninstall the delegate with the cluster |
 | 10 | nothing | $0 | |
 
 ## Things that keep billing after you stop

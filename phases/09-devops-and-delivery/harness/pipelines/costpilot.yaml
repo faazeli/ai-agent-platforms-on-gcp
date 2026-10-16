@@ -1,0 +1,441 @@
+# CostPilot on Harness: the same delivery as the GitHub Actions + Argo track, in one pipeline.
+#
+#   build (CI) ──► deploy_dev (canary → agent evals on the canary → Harness CV → rolling)
+#              ──► approve_prod ──► deploy_prod (canary → Harness CV → rolling)
+#
+# Stored in Git and synced by Harness Git Experience (pipelines as code). Identifiers
+# assume org "default" and project "costpilot"; change both if yours differ.
+# Validated against Harness's published v0 pipeline JSON schema (tests/test_harness.py).
+pipeline:
+  name: costpilot
+  identifier: costpilot
+  orgIdentifier: default
+  projectIdentifier: costpilot
+  tags:
+    course: phase-09
+  properties:
+    ci:
+      codebase:
+        connectorRef: github
+        repoName: <+input>
+        build: <+input>
+  variables:
+    - name: gcp_project
+      type: String
+      description: GCP project that holds Artifact Registry and the dev cluster
+      value: <+input>
+    - name: registry
+      type: String
+      value: us-central1-docker.pkg.dev/<+pipeline.variables.gcp_project>/costpilot
+    - name: cosign_key
+      type: String
+      description: Cloud KMS key for cosign, e.g. gcpkms://projects/P/locations/global/keyRings/costpilot-harness/cryptoKeys/cosign
+      value: <+input>
+    - name: attestor_key_version
+      type: String
+      description: Full resource name of the built-by-ci KMS key version (tofu output kms_key_version)
+      value: <+input>
+    - name: min_eval_accuracy
+      type: String
+      description: The canary is rolled back below this agent eval accuracy
+      value: "0.8"
+    - name: cv_enabled
+      type: String
+      description: '"true" once a monitored service with health sources exists (Lab 9.H5)'
+      value: "false"
+  stages:
+    # ------------------------------------------------------------------ CI
+    - stage:
+        name: Build test sign
+        identifier: build
+        type: CI
+        spec:
+          cloneCodebase: true
+          infrastructure:
+            # Build pods run in our own GKE cluster, as the KSA "harness-builder", which
+            # Workload Identity maps to a GSA that may push images and sign with KMS. No keys.
+            type: KubernetesDirect
+            spec:
+              connectorRef: gke_delegate_dev
+              namespace: harness-builds
+              serviceAccountName: harness-builder
+              automountServiceAccountToken: true
+              os: Linux
+          execution:
+            steps:
+              - parallel:
+                  - step:
+                      type: Run
+                      name: Python tests
+                      identifier: python_tests
+                      spec:
+                        connectorRef: dockerhub
+                        image: python:3.12-slim
+                        shell: Bash
+                        command: |
+                          pip install -q uv make
+                          uv venv && uv pip install -q -r requirements-dev.txt
+                          uv run make lint
+                          uv run make test PY=python
+                  - step:
+                      type: Run
+                      name: Java tests
+                      identifier: java_tests
+                      spec:
+                        connectorRef: dockerhub
+                        image: maven:3.9-eclipse-temurin-21
+                        shell: Bash
+                        command: mvn -B -q -f phases/07-java-integration/solution/ledger-java/pom.xml test
+              - step:
+                  type: BuildAndPushGAR
+                  name: Build cost-api
+                  identifier: build_cost_api
+                  spec:
+                    connectorRef: gcp_delegate
+                    host: us-central1-docker.pkg.dev
+                    projectID: <+pipeline.variables.gcp_project>
+                    imageName: costpilot/cost-api
+                    tags:
+                      - <+codebase.commitSha>
+                    dockerfile: phases/09-devops-and-delivery/docker/cost-api.Dockerfile
+                    context: .
+              - step:
+                  type: BuildAndPushGAR
+                  name: Build mcp-finops
+                  identifier: build_mcp_finops
+                  spec:
+                    connectorRef: gcp_delegate
+                    host: us-central1-docker.pkg.dev
+                    projectID: <+pipeline.variables.gcp_project>
+                    imageName: costpilot/mcp-finops
+                    tags:
+                      - <+codebase.commitSha>
+                    dockerfile: phases/09-devops-and-delivery/docker/mcp-finops.Dockerfile
+                    context: .
+              - step:
+                  type: BuildAndPushGAR
+                  name: Build agents
+                  identifier: build_agents
+                  spec:
+                    connectorRef: gcp_delegate
+                    host: us-central1-docker.pkg.dev
+                    projectID: <+pipeline.variables.gcp_project>
+                    imageName: costpilot/agents
+                    tags:
+                      - <+codebase.commitSha>
+                    dockerfile: phases/09-devops-and-delivery/docker/agents.Dockerfile
+                    context: .
+              - step:
+                  # Tags in our registry are immutable (Lab 9.2), but Binary Authorization
+                  # admits images by DIGEST. Resolve them once; every later step and both
+                  # deploy stages use exactly these digests, the ones we scan and attest.
+                  type: Run
+                  name: Resolve digests
+                  identifier: digests
+                  spec:
+                    connectorRef: dockerhub
+                    image: google/cloud-sdk:slim
+                    shell: Bash
+                    envVariables:
+                      REGISTRY: <+pipeline.variables.registry>
+                      TAG: <+codebase.commitSha>
+                    command: . phases/09-devops-and-delivery/harness/scripts/resolve_digests.sh
+                    outputVariables:
+                      - name: COST_API_DIGEST
+                      - name: MCP_FINOPS_DIGEST
+                      - name: AGENTS_DIGEST
+              - step:
+                  type: Run
+                  name: Scan and SBOM
+                  identifier: scan
+                  spec:
+                    connectorRef: dockerhub
+                    image: aquasec/trivy:0.65.0
+                    shell: Sh
+                    envVariables:
+                      REGISTRY: <+pipeline.variables.registry>
+                      COST_API_DIGEST: <+execution.steps.digests.output.outputVariables.COST_API_DIGEST>
+                      MCP_FINOPS_DIGEST: <+execution.steps.digests.output.outputVariables.MCP_FINOPS_DIGEST>
+                      AGENTS_DIGEST: <+execution.steps.digests.output.outputVariables.AGENTS_DIGEST>
+                    command: sh phases/09-devops-and-delivery/harness/scripts/scan_and_sbom.sh
+              - step:
+                  type: Run
+                  name: Sign and attest
+                  identifier: sign
+                  spec:
+                    connectorRef: dockerhub
+                    image: google/cloud-sdk:slim
+                    shell: Bash
+                    envVariables:
+                      REGISTRY: <+pipeline.variables.registry>
+                      PROJECT: <+pipeline.variables.gcp_project>
+                      COSIGN_KEY: <+pipeline.variables.cosign_key>
+                      ATTESTOR_KEY_VERSION: <+pipeline.variables.attestor_key_version>
+                      COST_API_DIGEST: <+execution.steps.digests.output.outputVariables.COST_API_DIGEST>
+                      MCP_FINOPS_DIGEST: <+execution.steps.digests.output.outputVariables.MCP_FINOPS_DIGEST>
+                      AGENTS_DIGEST: <+execution.steps.digests.output.outputVariables.AGENTS_DIGEST>
+                    command: bash phases/09-devops-and-delivery/harness/scripts/sign_and_attest.sh
+    # ------------------------------------------------------------------ dev
+    - stage:
+        name: Deploy dev
+        identifier: deploy_dev
+        type: Deployment
+        spec:
+          deploymentType: Kubernetes
+          service:
+            serviceRef: costpilot_agents
+          environment:
+            environmentRef: dev
+            deployToAll: false
+            infrastructureDefinitions:
+              - identifier: gke_dev
+          execution:
+            steps:
+              - stepGroup:
+                  name: Canary
+                  identifier: canary
+                  steps:
+                    - step:
+                        type: K8sCanaryDeploy
+                        name: Canary deploy
+                        identifier: canary_deploy
+                        timeout: 10m
+                        spec:
+                          instanceSelection:
+                            type: Count
+                            spec:
+                              count: 1
+                          skipDryRun: false
+                    - step:
+                        # The same eval gate as the Argo AnalysisTemplate: run Phase 5's
+                        # agent evals from the NEW image; below the bar the step fails,
+                        # and the failure strategy rolls the stage back.
+                        type: ShellScript
+                        name: Agent evals on the canary image
+                        identifier: canary_evals
+                        timeout: 20m
+                        spec:
+                          shell: Bash
+                          onDelegate: true
+                          delegateSelectors:
+                            - costpilot-gke-dev
+                          environmentVariables:
+                            - name: IMAGE
+                              type: String
+                              value: <+pipeline.variables.registry>/agents@<+pipeline.stages.build.spec.execution.steps.digests.output.outputVariables.AGENTS_DIGEST>
+                            - name: MIN_ACCURACY
+                              type: String
+                              value: <+pipeline.variables.min_eval_accuracy>
+                            - name: RUN_ID
+                              type: String
+                              value: <+pipeline.sequenceId>
+                          source:
+                            type: Inline
+                            spec:
+                              script: |
+                                set -euo pipefail
+                                NS=costpilot
+                                JOB="agent-evals-${RUN_ID}"
+                                cat <<EOF | kubectl -n "$NS" apply -f -
+                                apiVersion: batch/v1
+                                kind: Job
+                                metadata:
+                                  name: ${JOB}
+                                spec:
+                                  backoffLimit: 0
+                                  ttlSecondsAfterFinished: 3600
+                                  template:
+                                    metadata:
+                                      labels: {app: agent-evals}
+                                    spec:
+                                      serviceAccountName: agents
+                                      restartPolicy: Never
+                                      securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+                                      containers:
+                                        - name: evals
+                                          image: ${IMAGE}
+                                          command: ["python", "-m", "costpilot_agents.evals",
+                                                    "--evalset", "/app/evals/evalset.jsonl", "--limit", "10",
+                                                    "--min-accuracy", "${MIN_ACCURACY}",
+                                                    "--gateway", "http://litellm.costpilot.svc.cluster.local:4000"]
+                                          envFrom: [{secretRef: {name: agent-gateway-keys}}]
+                                          securityContext:
+                                            allowPrivilegeEscalation: false
+                                            runAsUser: 10001
+                                            capabilities: {drop: [ALL]}
+                                EOF
+                                for _ in $(seq 1 180); do
+                                  succeeded=$(kubectl -n "$NS" get job "$JOB" -o jsonpath='{.status.succeeded}')
+                                  failed=$(kubectl -n "$NS" get job "$JOB" -o jsonpath='{.status.failed}')
+                                  if [ "${succeeded:-0}" -ge 1 ] || [ "${failed:-0}" -ge 1 ]; then break; fi
+                                  sleep 5
+                                done
+                                kubectl -n "$NS" logs "job/$JOB" --tail=60 || true
+                                if [ "${succeeded:-0}" -ge 1 ]; then echo "Evals passed"; exit 0; fi
+                                echo "Evals failed or timed out: rolling back"; exit 1
+                    - step:
+                        type: Verify
+                        name: Harness CV on the canary
+                        identifier: verify
+                        timeout: 2h
+                        when:
+                          stageStatus: Success
+                          condition: <+pipeline.variables.cv_enabled> == "true"
+                        spec:
+                          type: Canary
+                          monitoredService:
+                            type: Default
+                            spec: {}
+                          spec:
+                            sensitivity: MEDIUM
+                            duration: 10m
+                    - step:
+                        type: K8sCanaryDelete
+                        name: Canary delete
+                        identifier: canary_delete
+                        timeout: 10m
+                        spec: {}
+              - stepGroup:
+                  name: Primary
+                  identifier: primary
+                  steps:
+                    - step:
+                        type: K8sRollingDeploy
+                        name: Rolling deploy
+                        identifier: rolling_deploy
+                        timeout: 10m
+                        spec:
+                          skipDryRun: false
+                          pruningEnabled: false
+            rollbackSteps:
+              - step:
+                  type: K8sCanaryDelete
+                  name: Canary delete
+                  identifier: rollback_canary_delete
+                  timeout: 10m
+                  spec: {}
+              - step:
+                  type: K8sRollingRollback
+                  name: Rolling rollback
+                  identifier: rolling_rollback
+                  timeout: 10m
+                  spec:
+                    pruningEnabled: false
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: StageRollback
+    # ------------------------------------------------------------------ gate
+    - stage:
+        name: Approve prod
+        identifier: approve_prod
+        type: Approval
+        spec:
+          execution:
+            steps:
+              - step:
+                  type: HarnessApproval
+                  name: Approve production rollout
+                  identifier: approve
+                  timeout: 1d
+                  spec:
+                    approvalMessage: |
+                      The dev canary of commit <+codebase.commitSha> passed the agent evals
+                      (and Harness CV, if enabled). Promote the same digests to production?
+                    includePipelineExecutionHistory: true
+                    approvers:
+                      userGroups:
+                        - costpilot_approvers
+                      minimumCount: 1
+                      disallowPipelineExecutor: true
+                    approverInputs: []
+    # ------------------------------------------------------------------ prod
+    - stage:
+        name: Deploy prod
+        identifier: deploy_prod
+        type: Deployment
+        spec:
+          deploymentType: Kubernetes
+          service:
+            useFromStage:
+              stage: deploy_dev
+          environment:
+            environmentRef: prod
+            deployToAll: false
+            infrastructureDefinitions:
+              - identifier: gke_prod
+          execution:
+            steps:
+              - stepGroup:
+                  name: Canary
+                  identifier: canary
+                  steps:
+                    - step:
+                        type: K8sCanaryDeploy
+                        name: Canary deploy
+                        identifier: canary_deploy
+                        timeout: 10m
+                        spec:
+                          instanceSelection:
+                            type: Percentage
+                            spec:
+                              percentage: 25
+                          skipDryRun: false
+                    - step:
+                        # Prod data differs from the eval set's ground truth, so prod relies
+                        # on Harness CV (error rate, latency, logs) rather than in-cluster evals.
+                        type: Verify
+                        name: Harness CV on the canary
+                        identifier: verify
+                        timeout: 2h
+                        when:
+                          stageStatus: Success
+                          condition: <+pipeline.variables.cv_enabled> == "true"
+                        spec:
+                          type: Canary
+                          monitoredService:
+                            type: Default
+                            spec: {}
+                          spec:
+                            sensitivity: HIGH
+                            duration: 15m
+                    - step:
+                        type: K8sCanaryDelete
+                        name: Canary delete
+                        identifier: canary_delete
+                        timeout: 10m
+                        spec: {}
+              - stepGroup:
+                  name: Primary
+                  identifier: primary
+                  steps:
+                    - step:
+                        type: K8sRollingDeploy
+                        name: Rolling deploy
+                        identifier: rolling_deploy
+                        timeout: 10m
+                        spec:
+                          skipDryRun: false
+                          pruningEnabled: false
+            rollbackSteps:
+              - step:
+                  type: K8sCanaryDelete
+                  name: Canary delete
+                  identifier: rollback_canary_delete
+                  timeout: 10m
+                  spec: {}
+              - step:
+                  type: K8sRollingRollback
+                  name: Rolling rollback
+                  identifier: rolling_rollback
+                  timeout: 10m
+                  spec:
+                    pruningEnabled: false
+        failureStrategies:
+          - onFailure:
+              errors:
+                - AllErrors
+              action:
+                type: StageRollback

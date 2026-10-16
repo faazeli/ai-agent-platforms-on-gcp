@@ -1,0 +1,18 @@
+# Where the dev environment runs. The connector inherits the delegate's in-cluster
+# credentials, so Harness never stores a kubeconfig or a cluster token.
+infrastructureDefinition:
+  name: gke_dev
+  identifier: gke_dev
+  description: GKE Autopilot cluster for dev
+  tags:
+    course: phase-09
+  orgIdentifier: default
+  projectIdentifier: costpilot
+  environmentRef: dev
+  deploymentType: Kubernetes
+  type: KubernetesDirect
+  spec:
+    connectorRef: gke_delegate_dev
+    namespace: costpilot
+    releaseName: costpilot-dev
+  allowSimultaneousDeployments: false

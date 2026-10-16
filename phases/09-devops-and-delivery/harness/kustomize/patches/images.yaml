@@ -1,0 +1,36 @@
+# Kustomize patch (strategic merge) added by the costpilot_agents service.
+# Harness resolves the expressions before kustomize runs: every image is pinned to
+# the digest the build stage scanned, signed and attested. Binary Authorization
+# rejects anything else at admission.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agents
+spec:
+  template:
+    spec:
+      containers:
+        - name: agents
+          image: <+pipeline.variables.registry>/agents@<+pipeline.stages.build.spec.execution.steps.digests.output.outputVariables.AGENTS_DIGEST>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cost-api
+spec:
+  template:
+    spec:
+      containers:
+        - name: cost-api
+          image: <+pipeline.variables.registry>/cost-api@<+pipeline.stages.build.spec.execution.steps.digests.output.outputVariables.COST_API_DIGEST>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-finops
+spec:
+  template:
+    spec:
+      containers:
+        - name: mcp-finops
+          image: <+pipeline.variables.registry>/mcp-finops@<+pipeline.stages.build.spec.execution.steps.digests.output.outputVariables.MCP_FINOPS_DIGEST>
